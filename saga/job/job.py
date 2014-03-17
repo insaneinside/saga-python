@@ -100,6 +100,7 @@ class Job (sb.Base, st.Task, sasync.Async) :
 
         # register properties with the attribute interface 
         self._attributes_register   (STATE,            UNKNOWN, sa.ENUM,   sa.SCALAR, sa.READONLY)
+        self._attributes_register   (STATE_DETAIL,     None,    sa.STRING, sa.SCALAR, sa.READONLY)
         self._attributes_register   (EXIT_CODE,        None,    sa.INT,    sa.SCALAR, sa.READONLY)
         self._attributes_register   (CREATED,          None,    sa.INT,    sa.SCALAR, sa.READONLY)
         self._attributes_register   (STARTED,          None,    sa.INT,    sa.SCALAR, sa.READONLY)
@@ -112,6 +113,7 @@ class Job (sb.Base, st.Task, sasync.Async) :
                                              DONE,    FAILED,  CANCELED, SUSPENDED])
 
         self._attributes_set_getter (STATE,           self.get_state)
+        self._attributes_set_getter (STATE_DETAIL,    self.get_state_detail)
         self._attributes_set_getter (ID,              self.get_id)
         self._attributes_set_getter (EXIT_CODE,       self._get_exit_code)
         self._attributes_set_getter (CREATED,         self._get_created)
@@ -510,6 +512,21 @@ class Job (sb.Base, st.Task, sasync.Async) :
         """
         return self._adaptor.get_state (ttype=ttype)
 
+
+    # --------------------------------------------------------------------------
+    #
+    @rus.takes    ('Job',
+                   rus.optional (rus.one_of (SYNC, ASYNC, TASK)))
+    @rus.returns  ((rus.anything, st.Task, basestring))
+    def get_state_detail (self, ttype=None) :
+        """
+        get_state_detail()
+
+        Return the current state of the job as reported by the native (backend)
+        driver.
+
+        """
+        return self._adaptor.get_state_detail (ttype=ttype)
 
     # --------------------------------------------------------------------------
     #
