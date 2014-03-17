@@ -1,6 +1,6 @@
 
-__author__    = "Andre Merzky, Ashley Z, Ole Weidner"
-__copyright__ = "Copyright 2012-2013, The SAGA Project"
+__author__    = "Andre Merzky, Ashley Z, Ole Weidner, Collin Sutton"
+__copyright__ = "Copyright 2012-2014, The SAGA Project"
 __license__   = "MIT"
 
 
@@ -593,6 +593,7 @@ class SLURMJobService (saga.adaptors.cpi.job.Service) :
         # create local jobs dictionary entry
         self.jobs[self.job_id] = {
                 'state': saga.job.PENDING,
+                'state_detail': None,
                 'exec_hosts': None,
                 'returncode': None,
                 'create_time': None,
@@ -879,6 +880,7 @@ class SLURMJob (saga.adaptors.cpi.job.Job):
         # initialize job attribute values
         self._id              = None
         self._state           = saga.job.NEW
+        self._state_detail    = None
         self._exit_code       = None
         self._exception       = None
         self._started         = None
@@ -927,7 +929,9 @@ class SLURMJob (saga.adaptors.cpi.job.Job):
         #self._logger.debug("Updating job status using the following information:\n%s" % out) 
 
         # update the state
-        curr_info['state'] = self._job_get_state(job_id)
+        self._job_refresh_state(job_id)
+        curr_info['state'] = self._state
+        curr_info['state_detail'] = self._state_detail
 
         # figure out when the job was created
         create_time_search = self.js.scontrol_create_time_re.search(out)
@@ -986,7 +990,7 @@ class SLURMJob (saga.adaptors.cpi.job.Job):
 
         return curr_info
 
-    def _job_get_state (self, job_id) :
+    def _job_refresh_state (self, job_id) :
         """ get the job state from the wrapper shell """
 
         # if the state is NEW and we haven't sent out a run command, keep
@@ -1019,7 +1023,9 @@ class SLURMJob (saga.adaptors.cpi.job.Job):
                 # no jobstate found from scontrol
                 return saga.job.UNKNOWN
 
-            return self.js._slurm_to_saga_jobstate(scontrol_state)
+            self._state_detail = scontrol_state
+            self._state = self.js._slurm_to_saga_jobstate(scontrol_state)
+            return
 
         except Exception, ex:
             raise saga.NoSuccess("Error getting the job state for "
@@ -1027,7 +1033,7 @@ class SLURMJob (saga.adaptors.cpi.job.Job):
         
         raise saga.NoSuccess._log (self._logger,
                                    "Internal SLURM adaptor error"
-                                   " in _job_get_state")
+                                   " in _job_refresh_state")
 
     # ----------------------------------------------------------------
     #
@@ -1035,8 +1041,15 @@ class SLURMJob (saga.adaptors.cpi.job.Job):
     def get_state(self):
         """ Implements saga.adaptors.cpi.job.Job.get_state()
         """
-        self._state = self._job_get_state (self._id)
+        self._job_refresh_state(self._id)
         return self._state
+
+    # ----------------------------------------------------------------
+    #
+    @SYNC_CALL
+    def get_state_detail(self):
+        self._job_refresh_state(self._id)
+        return self._state_detail
 
     # ----------------------------------------------------------------
     #
@@ -1062,7 +1075,8 @@ class SLURMJob (saga.adaptors.cpi.job.Job):
         rm, pid    = self._adaptor.parse_id(self._id)
 
         while True:
-            state = self._job_get_state(self._id)
+            self._job_refresh_state(self._id)
+            state = self._state
             self._logger.debug("wait() state for job id %s:%s"%(self._id, state))
 
             if state == saga.job.UNKNOWN :
